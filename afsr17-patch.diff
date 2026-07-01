@@ -1,0 +1,60 @@
+diff --git a/patch.py b/patch.py
+index ec61ca5..79d36e3 100755
+--- a/patch.py
++++ b/patch.py
+@@ -8,6 +8,7 @@ import dataclasses
+ import logging
+ import os
+ from pathlib import Path
++import shutil
+ import subprocess
+ import tempfile
+ import zipfile
+@@ -148,6 +149,17 @@ def parse_args():
+         action='store_true',
+         help='Skip creating Custota csig file and update JSON file',
+     )
++    parser.add_argument(
++        '--hosts-file',
++        type=Path,
++        help='Replacement /system/etc/hosts file',
++    )
++    parser.add_argument(
++        '--product-overlay',
++        type=Path,
++        action='append',
++        help='Add overlay to /product/overlay'
++    )
+ 
+     for name in modules.all_modules():
+         parser.add_argument(
+@@ -211,6 +223,9 @@ def run(args: argparse.Namespace, temp_dir: Path):
+         need_ext_fs |= requirements.ext_images
+         need_sepolicies |= requirements.selinux_patching
+ 
++    if args.product_overlay:
++        need_ext_fs.add('product')
++
+     # If we're messing with any ext filesystems, then we need to load the system
+     # images to get the list of SELinux contexts.
+     if need_ext_fs:
+@@ -283,6 +298,19 @@ def run(args: argparse.Namespace, temp_dir: Path):
+     for module in inject_modules:
+         module.inject(boot_fs, ext_fs, selinux_policies)
+ 
++    # Replace /system/etc/hosts.
++    if args.hosts_file:
++        with ext_fs['system'].open('system/etc/hosts', 'wb') as f_out:
++            with open(args.hosts_file, 'rb') as f_in:
++                shutil.copyfileobj(f_in, f_out)
++
++    # Add additonal overlays to /product/overlay.
++    if args.product_overlay:
++        for overlay in args.product_overlay:
++            with ext_fs['product'].open(f'overlay/{overlay.name}', 'wb') as f_out:
++                with open(overlay, 'rb') as f_in:
++                    shutil.copyfileobj(f_in, f_out)
++
+     # Repack ext filesystem images.
+     for name, fs in ext_fs.items():
+         paths = ExtImagePaths(images_dir, temp_dir, name)
