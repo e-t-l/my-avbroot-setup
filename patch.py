@@ -158,9 +158,15 @@ def parse_args():
         '--product-overlay',
         type=Path,
         action='append',
-        help='Add overlay to /product/overlay'
+        help='Add overlay to /product/overlay',
     )
-
+    parser.add_argument(
+        '--data-resourcecache',
+        type=Path,
+        action='append',
+        help='Add overlay to /data/resource-cache'
+    )
+    
     for name in modules.all_modules():
         parser.add_argument(
             f'--module-{name}',
@@ -225,6 +231,9 @@ def run(args: argparse.Namespace, temp_dir: Path):
 
     if args.product_overlay:
         need_ext_fs.add('product')
+
+    if args.data_resourcecache:
+        need_ext_fs.add('data')
 
     # If we're messing with any ext filesystems, then we need to load the system
     # images to get the list of SELinux contexts.
@@ -308,6 +317,13 @@ def run(args: argparse.Namespace, temp_dir: Path):
     if args.product_overlay:
         for overlay in args.product_overlay:
             with ext_fs['product'].open(f'overlay/{overlay.name}', 'wb') as f_out:
+                with open(overlay, 'rb') as f_in:
+                    shutil.copyfileobj(f_in, f_out)
+
+    # Add additonal overlays to /data/resource-cache.
+    if args.data_resourcecache:
+        for overlay in args.data_resourcecache:
+            with ext_fs['data'].open(f'resource-cache/{overlay.name}', 'wb') as f_out:
                 with open(overlay, 'rb') as f_in:
                     shutil.copyfileobj(f_in, f_out)
 
